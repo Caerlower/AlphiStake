@@ -1,0 +1,71 @@
+import { Contract, Token, Amount } from "@alephium/web3";
+
+contract StakingContract {
+    // State variables
+    private let stakingToken: Token;
+    private let rewardRate: Amount;
+    private let totalStaked: Amount;
+    private let stakingBalances: Map<Address, Amount>;
+    private let rewards: Map<Address, Amount>;
+    private let lastUpdated: Map<Address, BlockHeight>;
+
+    event Staked(Address indexed user, Amount amount);
+    event Unstaked(Address indexed user, Amount amount);
+    event RewardPaid(Address indexed user, Amount reward);
+
+    constructor(Token _stakingToken, Amount _rewardRate) {
+        stakingToken = _stakingToken;
+        rewardRate = _rewardRate;
+        totalStaked = Amount(0);
+        stakingBalances = Map<Address, Amount>();
+        rewards = Map<Address, Amount>();
+        lastUpdated = Map<Address, BlockHeight>();
+    }
+    public fun stake(Amount amount) {
+        require(amount > Amount(0), "Cannot stake 0");
+        stakingToken.transferFrom(msg.sender, address(this), amount);
+        totalStaked += amount;
+        stakingBalances[msg.sender] += amount;
+        lastUpdated[msg.sender] = block.height;
+
+        emit Staked(msg.sender, amount);
+    }
+    public fun unstake(Amount amount) {
+        require(amount > Amount(0), "Cannot unstake 0");
+        require(stakingBalances[msg.sender] >= amount, "Insufficient balance to unstake");
+        _updateRewards(msg.sender);
+        totalStaked -= amount;
+        stakingBalances[msg.sender] -= amount;
+        stakingToken.transfer(msg.sender, amount);
+
+        emit Unstaked(msg.sender, amount);
+    }
+    public fun claimRewards() {
+        _updateRewards(msg.sender);
+        Amount reward = rewards[msg.sender];
+        require(reward > Amount(0), "No rewards available");
+        rewards[msg.sender] = Amount(0);
+        msg.sender.transfer(reward);
+
+        emit RewardPaid(msg.sender, reward);
+    }
+    private fun _updateRewards(Address user) {
+        if (lastUpdated[user] == BlockHeight(0)) {
+            lastUpdated[user] = block.height;
+            return;
+        }
+
+        let stakedAmount = stakingBalances[user];
+        let timeStaked = block.height - lastUpdated[user];
+        Amount reward = stakedAmount * rewardRate * timeStaked;
+
+        rewards[user] += reward;
+        lastUpdated[user] = block.height;
+    }
+    public fun getStakedBalance(Address user): Amount {
+        return stakingBalances[user];
+    }
+    public fun getRewards(Address user): Amount {
+        return rewards[user];
+    }
+}

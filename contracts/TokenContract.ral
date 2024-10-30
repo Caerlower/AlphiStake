@@ -1,0 +1,55 @@
+import { Contract, Amount } from "@alephium/web3";
+
+contract TokenContract {
+    private let name: string;
+    private let symbol: string;
+    private let decimals: uint8;
+    private let totalSupply: Amount;
+    private let balances: Map<Address, Amount>;
+    private let allowances: Map<Address, Map<Address, Amount>>;
+
+    event Transfer(Address indexed from, Address indexed to, Amount value);
+    event Approval(Address indexed owner, Address indexed spender, Amount value);
+
+    constructor(string _name, string _symbol, uint8 _decimals, Amount _initialSupply) {
+        name = _name;
+        symbol = _symbol;
+        decimals = _decimals;
+        totalSupply = _initialSupply;
+        balances[msg.sender] = totalSupply;
+
+        emit Transfer(Address(0), msg.sender, totalSupply);
+    }
+    public fun totalSupply(): Amount {
+        return totalSupply;
+    }
+    public fun balanceOf(Address owner): Amount {
+        return balances[owner];
+    }
+    public fun transfer(Address recipient, Amount amount) {
+        require(amount > Amount(0), "Transfer amount must be greater than zero");
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        balances[msg.sender] -= amount;
+        balances[recipient] += amount;
+
+        emit Transfer(msg.sender, recipient, amount);
+    }
+    public fun approve(Address spender, Amount amount) {
+        require(amount > Amount(0), "Approval amount must be greater than zero");
+        allowances[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
+    }
+    public fun transferFrom(Address sender, Address recipient, Amount amount) {
+        require(amount > Amount(0), "Transfer amount must be greater than zero");
+        require(balances[sender] >= amount, "Insufficient balance");
+        require(allowances[sender][msg.sender] >= amount, "Allowance exceeded");
+        balances[sender] -= amount;
+        balances[recipient] += amount;
+        allowances[sender][msg.sender] -= amount;
+
+        emit Transfer(sender, recipient, amount);
+    }
+    public fun allowance(Address owner, Address spender): Amount {
+        return allowances[owner][spender];
+    }
+}
